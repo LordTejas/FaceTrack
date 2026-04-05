@@ -1,0 +1,40 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Tauri
+src-tauri/target/
+
+# Data (runtime)
+backend/data/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Claude
+.claude/

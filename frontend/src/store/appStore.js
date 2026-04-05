@@ -1,0 +1,55 @@
+import { create } from 'zustand'
+
+const useAppStore = create((set) => ({
+  // Backend connection
+  isBackendConnected: false,
+  setBackendConnected: (v) => set({ isBackendConnected: v }),
+
+  // Devices
+  devices: [],
+  activeDevice: null,
+  setDevices: (d) => set({ devices: d }),
+  setActiveDevice: (d) => set({ activeDevice: d }),
+
+  // Camera feed
+  lastFrame: null,
+  lastFaces: [],
+  setLastFrame: (data, faces) => set({ lastFrame: data, lastFaces: faces || [] }),
+
+  // Session
+  currentSession: null,
+  setCurrentSession: (s) => set({ currentSession: s }),
+
+  // Events
+  recentEvents: [],
+  addEvent: (event) =>
+    set((state) => ({
+      recentEvents: [event, ...state.recentEvents].slice(0, 20),
+    })),
+
+  // Pending confirmations (uncertain matches)
+  pendingConfirmations: [],
+  addPendingConfirmation: (c) =>
+    set((state) => ({
+      pendingConfirmations: [...state.pendingConfirmations, c],
+    })),
+  removePendingConfirmation: (studentId) =>
+    set((state) => ({
+      pendingConfirmations: state.pendingConfirmations.filter(
+        (c) => c.student_id !== studentId
+      ),
+    })),
+
+  // Toasts (attendance notifications)
+  toasts: [],
+  addToast: (toast) =>
+    set((state) => ({
+      toasts: [...state.toasts, { ...toast, id: Date.now() }],
+    })),
+  removeToast: (id) =>
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id),
+    })),
+}))
+
+export default useAppStore

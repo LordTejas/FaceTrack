@@ -1,0 +1,11 @@
+{
+  "name": "facetrack",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "cd backend && venv/Scripts/python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "dev:tauri": "cargo tauri dev"
+  }
+}
