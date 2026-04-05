@@ -11,7 +11,11 @@ function ConfirmationCard({ confirmation, onDismiss }) {
   const timerRef = useRef(null)
   const currentSession = useAppStore((s) => s.currentSession)
 
+  // Reset timer whenever the confirmation is updated (same student re-detected)
   useEffect(() => {
+    setTimeLeft(COUNTDOWN_SECONDS)
+    if (timerRef.current) clearInterval(timerRef.current)
+
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -24,11 +28,9 @@ function ConfirmationCard({ confirmation, onDismiss }) {
     }, 1000)
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
+      if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [onDismiss])
+  }, [confirmation.updatedAt, onDismiss])
 
   const handleConfirm = async () => {
     setConfirming(true)
@@ -46,9 +48,9 @@ function ConfirmationCard({ confirmation, onDismiss }) {
     }
   }
 
-  const confidencePercent = confirmation.confidence != null
-    ? (confirmation.confidence * 100).toFixed(0)
-    : '??'
+  // Backend sends confidence as 0-100 already
+  const raw = confirmation.confidence ?? 0
+  const confidencePercent = raw > 1 ? raw.toFixed(0) : (raw * 100).toFixed(0)
 
   return (
     <div className="bg-amber-900/50 border border-amber-600 rounded-lg p-4">

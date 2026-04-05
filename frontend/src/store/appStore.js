@@ -30,9 +30,27 @@ const useAppStore = create((set) => ({
   // Pending confirmations (uncertain matches)
   pendingConfirmations: [],
   addPendingConfirmation: (c) =>
-    set((state) => ({
-      pendingConfirmations: [...state.pendingConfirmations, c],
-    })),
+    set((state) => {
+      // Upsert: update existing entry for same student instead of duplicating
+      const exists = state.pendingConfirmations.find(
+        (p) => p.student_id === c.student_id
+      )
+      if (exists) {
+        return {
+          pendingConfirmations: state.pendingConfirmations.map((p) =>
+            p.student_id === c.student_id
+              ? { ...p, confidence: c.confidence, updatedAt: Date.now() }
+              : p
+          ),
+        }
+      }
+      return {
+        pendingConfirmations: [
+          ...state.pendingConfirmations,
+          { ...c, updatedAt: Date.now() },
+        ],
+      }
+    }),
   removePendingConfirmation: (studentId) =>
     set((state) => ({
       pendingConfirmations: state.pendingConfirmations.filter(
