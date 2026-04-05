@@ -130,17 +130,19 @@ function AttendanceTable({ data = [], isLoading = false }) {
         cell: ({ getValue }) => <ConfidenceBar value={getValue()} />,
       },
       {
-        accessorKey: 'mode',
+        accessorFn: (row) => row.capture_mode || row.mode,
+        id: 'mode',
         header: 'Mode',
         enableSorting: false,
         cell: ({ getValue }) => <ModeBadge mode={getValue()} />,
       },
       {
-        accessorKey: 'session_id',
+        accessorFn: (row) => row.session_name || row.session_id || '--',
+        id: 'session',
         header: 'Session',
         enableSorting: false,
         cell: ({ getValue }) => (
-          <span className="text-gray-400 text-xs">{getValue() || '--'}</span>
+          <span className="text-gray-400 text-xs">{getValue()}</span>
         ),
       },
     ],
