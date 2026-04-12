@@ -47,7 +47,7 @@ async def add_device(
         device = await camera_manager.add_network_camera(
             url=body.url,
             name=body.name,
-            cam_type=body.type,
+            type_=body.type,
             db=db,
         )
         return device

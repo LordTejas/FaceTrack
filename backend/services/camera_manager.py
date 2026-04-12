@@ -253,8 +253,11 @@ class CameraManager:
 
     def _validate_network_camera(self, url: str) -> bool:
         """Try to open the URL and read one frame. Returns True on success."""
-        cap = cv2.VideoCapture(url)
+        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
         try:
+            # Set a short timeout for network cameras
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
             if not cap.isOpened():
                 return False
             ret, _ = cap.read()

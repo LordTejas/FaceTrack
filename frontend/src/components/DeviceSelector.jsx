@@ -12,8 +12,10 @@ function DeviceSelector() {
   const [networkForm, setNetworkForm] = useState({
     url: '',
     name: '',
-    type: 'ip_camera',
+    type: 'esp32',
   })
+  const [addError, setAddError] = useState('')
+  const [adding, setAdding] = useState(false)
   const initDone = useRef(false)
 
   const fetchDevices = async () => {
@@ -107,13 +109,35 @@ function DeviceSelector() {
   const handleAddNetworkCamera = async (e) => {
     e.preventDefault()
     if (!networkForm.url || !networkForm.name) return
+    setAddError('')
+    setAdding(true)
+
+    // Auto-format URL: if user enters just an IP, build the full URL
+    let url = networkForm.url.trim()
+    if (networkForm.type === 'esp32') {
+      // If just an IP like "192.168.1.100", build ESP32-CAM MJPEG URL
+      if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(url)) {
+        url = `http://${url}:81/stream`
+      } else if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/.test(url)) {
+        url = `http://${url}/stream`
+      } else if (!url.startsWith('http')) {
+        url = `http://${url}`
+      }
+    } else if (!url.startsWith('http') && !url.startsWith('rtsp')) {
+      url = `http://${url}`
+    }
+
     try {
-      await addNetworkCamera(networkForm)
-      setNetworkForm({ url: '', name: '', type: 'ip_camera' })
+      await addNetworkCamera({ ...networkForm, url })
+      setNetworkForm({ url: '', name: '', type: 'esp32' })
       setShowNetworkForm(false)
-      fetchDevices()
+      // Refresh device list to show the new camera
+      const data = await getDevices()
+      setDevices(data.devices || data || [])
     } catch (err) {
-      console.error('Failed to add network camera:', err)
+      setAddError(err.message || 'Failed to add camera. Check the URL and ensure the camera is reachable.')
+    } finally {
+      setAdding(false)
     }
   }
 
@@ -180,55 +204,71 @@ function DeviceSelector() {
 
       {/* Network camera form */}
       {showNetworkForm && (
-        <form
-          onSubmit={handleAddNetworkCamera}
-          className="flex items-end gap-3 bg-gray-800/50 border border-gray-700 rounded-lg p-4"
-        >
-          <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">Camera URL</label>
-            <input
-              type="text"
-              value={networkForm.url}
-              onChange={(e) =>
-                setNetworkForm({ ...networkForm, url: e.target.value })
-              }
-              placeholder="rtsp://192.168.1.100:554/stream"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">Name</label>
-            <input
-              type="text"
-              value={networkForm.name}
-              onChange={(e) =>
-                setNetworkForm({ ...networkForm, name: e.target.value })
-              }
-              placeholder="Front Door Camera"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Type</label>
-            <select
-              value={networkForm.type}
-              onChange={(e) =>
-                setNetworkForm({ ...networkForm, type: e.target.value })
-              }
-              className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-3">
+          <form onSubmit={handleAddNetworkCamera} className="flex items-end gap-3">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Type</label>
+              <select
+                value={networkForm.type}
+                onChange={(e) =>
+                  setNetworkForm({ ...networkForm, type: e.target.value, url: '' })
+                }
+                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="esp32">ESP32-CAM</option>
+                <option value="ip">IP Camera (HTTP)</option>
+                <option value="rtsp">RTSP Stream</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">
+                {networkForm.type === 'esp32' ? 'IP Address' : 'Stream URL'}
+              </label>
+              <input
+                type="text"
+                value={networkForm.url}
+                onChange={(e) =>
+                  setNetworkForm({ ...networkForm, url: e.target.value })
+                }
+                placeholder={
+                  networkForm.type === 'esp32'
+                    ? '192.168.1.100'
+                    : networkForm.type === 'rtsp'
+                    ? 'rtsp://192.168.1.100:554/stream'
+                    : 'http://192.168.1.100:8080/video'
+                }
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex-1 max-w-xs">
+              <label className="block text-xs text-gray-400 mb-1">Name</label>
+              <input
+                type="text"
+                value={networkForm.name}
+                onChange={(e) =>
+                  setNetworkForm({ ...networkForm, name: e.target.value })
+                }
+                placeholder="My ESP32 Camera"
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={adding || !networkForm.url || !networkForm.name}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
             >
-              <option value="ip_camera">IP Camera</option>
-              <option value="esp32">ESP32-CAM</option>
-              <option value="rtsp">RTSP Stream</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            Add
-          </button>
-        </form>
+              {adding ? 'Testing...' : 'Add Camera'}
+            </button>
+          </form>
+          {networkForm.type === 'esp32' && (
+            <p className="text-xs text-gray-500">
+              Just enter the IP address of your ESP32-CAM. The stream URL (http://IP:81/stream) will be built automatically.
+            </p>
+          )}
+          {addError && (
+            <p className="text-red-400 text-xs">{addError}</p>
+          )}
+        </div>
       )}
 
       {/* Active device indicator */}
