@@ -153,3 +153,17 @@ async def health_check() -> dict:
 data_dir = Path(get_config().storage.data_dir)
 data_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/data", StaticFiles(directory=str(data_dir), check_dir=False), name="data")
+
+
+# ---- Entry point for PyInstaller exe --------------------------------------
+if __name__ == "__main__":
+    import sys
+    import os
+    import uvicorn
+
+    # When running as PyInstaller bundle, set working directory
+    # to the exe's location so data/ folder is created there
+    if getattr(sys, 'frozen', False):
+        os.chdir(os.path.dirname(sys.executable))
+
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
