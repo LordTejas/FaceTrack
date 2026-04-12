@@ -1,5 +1,4 @@
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -18,64 +17,70 @@ pub fn run() {
                 )?;
             }
 
-            // Spawn the Python backend sidecar
-            let shell = app.shell();
-            let sidecar = shell
-                .sidecar("facetrack-server")
-                .expect("failed to create sidecar command");
+            // In release mode: spawn the Python backend sidecar
+            // In dev mode: backend runs separately via `uvicorn`
+            if !cfg!(debug_assertions) {
+                use tauri_plugin_shell::ShellExt;
 
-            let (mut rx, child) = sidecar.spawn().expect("failed to spawn backend sidecar");
+                let shell = app.shell();
+                let sidecar = shell
+                    .sidecar("facetrack-server")
+                    .expect("failed to create sidecar command");
 
-            // Log sidecar output in a background thread
-            tauri::async_runtime::spawn(async move {
-                use tauri_plugin_shell::process::CommandEvent;
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(line) => {
-                            log::info!("[backend] {}", String::from_utf8_lossy(&line));
+                let (mut rx, child) = sidecar.spawn().expect("failed to spawn backend sidecar");
+
+                // Log sidecar output
+                tauri::async_runtime::spawn(async move {
+                    use tauri_plugin_shell::process::CommandEvent;
+                    while let Some(event) = rx.recv().await {
+                        match event {
+                            CommandEvent::Stdout(line) => {
+                                log::info!("[backend] {}", String::from_utf8_lossy(&line));
+                            }
+                            CommandEvent::Stderr(line) => {
+                                log::info!("[backend] {}", String::from_utf8_lossy(&line));
+                            }
+                            CommandEvent::Terminated(status) => {
+                                log::info!("[backend] terminated with {:?}", status);
+                                break;
+                            }
+                            _ => {}
                         }
-                        CommandEvent::Stderr(line) => {
-                            log::info!("[backend] {}", String::from_utf8_lossy(&line));
-                        }
-                        CommandEvent::Terminated(status) => {
-                            log::info!("[backend] terminated with {:?}", status);
+                    }
+                });
+
+                app.manage(BackendChild(Mutex::new(Some(child))));
+
+                // Wait for backend to be ready
+                log::info!("Waiting for backend to start...");
+                let client = reqwest::blocking::Client::builder()
+                    .timeout(Duration::from_secs(2))
+                    .build()
+                    .unwrap();
+
+                for i in 0..30 {
+                    match client.get("http://127.0.0.1:8000/health").send() {
+                        Ok(resp) if resp.status().is_success() => {
+                            log::info!("Backend ready after {} attempts", i + 1);
                             break;
                         }
-                        _ => {}
-                    }
-                }
-            });
-
-            // Store child so we can kill it on exit
-            app.manage(BackendChild(Mutex::new(Some(child))));
-
-            // Wait for backend to be ready (poll /health)
-            log::info!("Waiting for backend to start...");
-            let client = reqwest::blocking::Client::builder()
-                .timeout(Duration::from_secs(2))
-                .build()
-                .unwrap();
-
-            for i in 0..30 {
-                match client.get("http://127.0.0.1:8000/health").send() {
-                    Ok(resp) if resp.status().is_success() => {
-                        log::info!("Backend ready after {} attempts", i + 1);
-                        break;
-                    }
-                    _ => {
-                        if i == 29 {
-                            log::error!("Backend failed to start after 30 attempts");
+                        _ => {
+                            if i == 29 {
+                                log::error!("Backend failed to start after 30 attempts");
+                            }
+                            std::thread::sleep(Duration::from_millis(500));
                         }
-                        std::thread::sleep(Duration::from_millis(500));
                     }
                 }
+            } else {
+                // Dev mode: no sidecar, just manage empty state
+                app.manage(BackendChild(Mutex::new(None)));
             }
 
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                // Kill the backend sidecar when the window closes
                 if let Some(state) = window.try_state::<BackendChild>() {
                     if let Ok(mut guard) = state.0.lock() {
                         if let Some(child) = guard.take() {
