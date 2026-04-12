@@ -27,10 +27,23 @@ const useAppStore = create((set) => ({
       recentEvents: [event, ...state.recentEvents].slice(0, 20),
     })),
 
+  // Students already marked in current session — skip confirmations for them
+  markedStudents: new Set(),
+  addMarkedStudent: (studentId) =>
+    set((state) => {
+      const next = new Set(state.markedStudents)
+      next.add(studentId)
+      return { markedStudents: next }
+    }),
+  clearMarkedStudents: () => set({ markedStudents: new Set() }),
+
   // Pending confirmations (uncertain matches)
   pendingConfirmations: [],
   addPendingConfirmation: (c) =>
     set((state) => {
+      // Skip if already marked in this session
+      if (state.markedStudents.has(c.student_id)) return state
+
       // Upsert: update existing entry for same student instead of duplicating
       const exists = state.pendingConfirmations.find(
         (p) => p.student_id === c.student_id

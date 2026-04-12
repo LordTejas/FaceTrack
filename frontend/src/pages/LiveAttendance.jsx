@@ -85,6 +85,7 @@ function LiveAttendance() {
     try {
       await updateSession(currentSession.id, { status: 'ended', ended_at: new Date().toISOString() })
       setCurrentSession(null)
+      useAppStore.getState().clearMarkedStudents()
     } catch (err) {
       setError(err.message || 'Failed to end session')
     } finally {

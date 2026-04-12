@@ -28,6 +28,8 @@ export default function useWebSocket() {
   const setLastFrame = useAppStore((s) => s.setLastFrame)
   const addEvent = useAppStore((s) => s.addEvent)
   const addToast = useAppStore((s) => s.addToast)
+  const addMarkedStudent = useAppStore((s) => s.addMarkedStudent)
+  const removePendingConfirmation = useAppStore((s) => s.removePendingConfirmation)
   const setBackendConnected = useAppStore((s) => s.setBackendConnected)
 
   // Sync backend connection status with store
@@ -89,6 +91,8 @@ export default function useWebSocket() {
         switch (msg.type) {
           case 'attendance_marked':
             addEvent(msg)
+            addMarkedStudent(msg.student_id)
+            removePendingConfirmation(msg.student_id)
             addToast({
               type: 'attendance',
               name: msg.name,
@@ -127,7 +131,7 @@ export default function useWebSocket() {
     }
 
     eventsWsRef.current = ws
-  }, [addEvent, addToast, addPendingConfirmation])
+  }, [addEvent, addToast, addPendingConfirmation, addMarkedStudent, removePendingConfirmation])
 
   useEffect(() => {
     mountedRef.current = true
