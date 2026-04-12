@@ -1,7 +1,12 @@
 import axios from 'axios'
 
+// In dev mode, Vite proxy handles /api -> localhost:8000
+// In production (Tauri bundle), call the backend directly
+const isProduction = !window.location.port || window.location.protocol === 'tauri:'
+const BASE_URL = isProduction ? 'http://127.0.0.1:8000' : ''
+
 const api = axios.create({
-  baseURL: '',
+  baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

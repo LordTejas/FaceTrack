@@ -5,6 +5,12 @@ const MAX_RETRIES = 10
 const RECONNECT_DELAY = 2000
 
 function getWsBaseUrl() {
+  // In production (Tauri bundle), connect directly to backend
+  const isProduction = !window.location.port || window.location.protocol === 'tauri:'
+  if (isProduction) {
+    return 'ws://127.0.0.1:8000'
+  }
+  // In dev mode, Vite proxy handles ws:// on the same host
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}`
 }
