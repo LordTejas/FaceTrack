@@ -99,6 +99,19 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Could not restore active session: %s", exc)
 
+    # Auto-connect to first available camera and start frame processor
+    try:
+        devices = await camera_manager.list_devices(db)
+        if devices:
+            first = devices[0]
+            device_id = first.id if hasattr(first, 'id') else first.get("id")
+            if device_id:
+                await camera_manager.connect(device_id, db)
+                frame_processor.start()
+                logger.info("Auto-connected camera: %s", device_id)
+    except Exception as exc:
+        logger.warning("Could not auto-connect camera: %s", exc)
+
     logger.info("FaceTrack API ready.")
 
     yield  # ---- Application is running ------------------------------------

@@ -84,7 +84,7 @@ async def connect_device(
     active_id = active.id if hasattr(active, 'id') else (active.get("id") if isinstance(active, dict) else None)
     if active and active_id == device_id:
         if not frame_processor.is_running():
-            await frame_processor.start()
+            frame_processor.start()
         return {"status": "connected", "device_id": device_id}
 
     # Disconnect current device if switching
@@ -101,7 +101,7 @@ async def connect_device(
         raise HTTPException(status_code=500, detail=str(exc))
 
     # Start processing frames from the connected camera
-    await frame_processor.start()
+    frame_processor.start()
 
     return {"status": "connected", "device_id": device_id}
 
