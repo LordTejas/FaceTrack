@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, Wifi, WifiOff, Plus, X } from 'lucide-react'
 import useAppStore from '../store/appStore'
-import { getDevices, connectDevice, disconnectDevice, addNetworkCamera } from '../services/api'
+import { getDevices, connectDevice, disconnectDevice, addNetworkCamera, getActiveDevice } from '../services/api'
 
 function DeviceSelector() {
   const { devices, activeDevice, setDevices, setActiveDevice } = useAppStore()
@@ -14,6 +14,7 @@ function DeviceSelector() {
     name: '',
     type: 'ip_camera',
   })
+  const initDone = useRef(false)
 
   const fetchDevices = async () => {
     setRefreshing(true)
@@ -27,16 +28,62 @@ function DeviceSelector() {
     }
   }
 
+  // On mount: fetch devices, check active, auto-connect to ensure frame processor runs
   useEffect(() => {
-    fetchDevices()
-  }, [])
+    if (initDone.current) return
+    initDone.current = true
+
+    ;(async () => {
+      // Fetch device list
+      let deviceList = []
+      try {
+        const data = await getDevices()
+        deviceList = data.devices || data || []
+        setDevices(deviceList)
+      } catch (err) {
+        console.error('Failed to fetch devices:', err)
+      }
+
+      // Check for active device and ensure frame processor is running
+      let targetId = null
+      let targetName = null
+      try {
+        const result = await getActiveDevice()
+        const active = result?.device || result
+        if (active && active.id) {
+          targetId = active.id
+          targetName = active.name
+        }
+      } catch {
+        // No active device
+      }
+
+      // If no active device, auto-select first available
+      if (!targetId && deviceList.length > 0) {
+        targetId = deviceList[0].id
+        targetName = deviceList[0].name
+      }
+
+      // Connect (idempotent — also starts frame processor if not running)
+      if (targetId) {
+        try {
+          await connectDevice(targetId)
+          setActiveDevice({ id: targetId, name: targetName || targetId })
+          setSelectedDeviceId(targetId)
+        } catch (err) {
+          console.error('Auto-connect failed:', err)
+        }
+      }
+    })()
+  }, [setDevices, setActiveDevice])
 
   const handleConnect = async () => {
     if (!selectedDeviceId) return
     setLoading(true)
     try {
-      const result = await connectDevice(selectedDeviceId)
-      setActiveDevice(result.device || result)
+      await connectDevice(selectedDeviceId)
+      const device = devices.find((d) => d.id === selectedDeviceId)
+      setActiveDevice(device || { id: selectedDeviceId, name: selectedDeviceId })
     } catch (err) {
       console.error('Failed to connect:', err)
     } finally {
@@ -49,6 +96,7 @@ function DeviceSelector() {
     try {
       await disconnectDevice()
       setActiveDevice(null)
+      setSelectedDeviceId('')
     } catch (err) {
       console.error('Failed to disconnect:', err)
     } finally {
@@ -74,7 +122,7 @@ function DeviceSelector() {
       <div className="flex items-center gap-3">
         {/* Device dropdown */}
         <select
-          value={selectedDeviceId}
+          value={activeDevice ? activeDevice.id : selectedDeviceId}
           onChange={(e) => setSelectedDeviceId(e.target.value)}
           disabled={!!activeDevice || loading}
           className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
@@ -187,7 +235,7 @@ function DeviceSelector() {
       {activeDevice && (
         <div className="flex items-center gap-2 text-sm text-green-400">
           <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          Connected to: {activeDevice.name || activeDevice.id}
+          Connected
         </div>
       )}
     </div>
